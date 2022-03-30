@@ -1,6 +1,6 @@
 # LAVT: Language-Aware Vision Transformer for Referring Image Segmentation
 Welcome to the official repository for the method presented in
-"LAVT: Language-Aware Vision Transformer for Referring Image Segmentation".
+"LAVT: Language-Aware Vision Transformer for Referring Image Segmentation."
 
 ![Pipeline Image](pipeline.jpg)
 
@@ -163,6 +163,13 @@ If one wants to try fixing this problem immediately, a thing to try is moving BE
 We have not fully validated this change (therefore have not implemented it in this release),
 but GPU utility and results both seem to have improved in some preliminary experiments.
 
+## Contributing
+We appreciate all contributions.
+It helps the project if you could
+- report issues you are facing,
+- give a :+1: on issues reported by others that are relevant to you,
+- answer issues reported by others for which you have found solutions,
+- and implement helpful new features or improve the code otherwise with pull requests.
 
 ## Acknowledgements
 Code in this repository is built upon several public repositories.
