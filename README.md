@@ -146,6 +146,14 @@ We have validated LAVT on RefCOCO with multiple runs.
 The overall IoU on the val set generally lies in the range of 72.73±0.5%.
 
 
+## Demo: Try LAVT on Your Own Image-text Pairs!
+One can run inference on any pair of image and text input
+and see the result.
+We include a script, `./demo_inference.py`, for this purpose.
+Choose a photo of your liking and come up with some
+creative expressions to have fun.
+
+
 ## Citing LAVT
 ```
 @inproceedings{yang2022lavt,
