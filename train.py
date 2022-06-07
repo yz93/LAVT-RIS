@@ -90,10 +90,14 @@ def evaluate(model, data_loader, bert_model):
             sentences = sentences.squeeze(1)
             attentions = attentions.squeeze(1)
 
-            last_hidden_states = bert_model(sentences, attention_mask=attentions)[0]
-            embedding = last_hidden_states.permute(0, 2, 1)  # (B, 768, N_l) to make Conv1d happy
-            attentions = attentions.unsqueeze(dim=-1)  # (B, N_l, 1)
-            output = model(image, embedding, l_mask=attentions)
+            if bert_model is not None:
+                last_hidden_states = bert_model(sentences, attention_mask=attentions)[0]
+                embedding = last_hidden_states.permute(0, 2, 1)  # (B, 768, N_l) to make Conv1d happy
+                attentions = attentions.unsqueeze(dim=-1)  # (B, N_l, 1)
+                output = model(image, embedding, l_mask=attentions)
+            else:
+                output = model(image, sentences, l_mask=attentions)
+
             iou, I, U = IoU(output, target)
             acc_ious += iou
             mean_IoU.append(iou)
@@ -139,10 +143,13 @@ def train_one_epoch(model, criterion, optimizer, data_loader, lr_scheduler, epoc
         sentences = sentences.squeeze(1)
         attentions = attentions.squeeze(1)
 
-        last_hidden_states = bert_model(sentences, attention_mask=attentions)[0]  # (6, 10, 768)
-        embedding = last_hidden_states.permute(0, 2, 1)  # (B, 768, N_l) to make Conv1d happy
-        attentions = attentions.unsqueeze(dim=-1)  # (batch, N_l, 1)
-        output = model(image, embedding, l_mask=attentions)
+        if bert_model is not None:
+            last_hidden_states = bert_model(sentences, attention_mask=attentions)[0]  # (6, 10, 768)
+            embedding = last_hidden_states.permute(0, 2, 1)  # (B, 768, N_l) to make Conv1d happy
+            attentions = attentions.unsqueeze(dim=-1)  # (batch, N_l, 1)
+            output = model(image, embedding, l_mask=attentions)
+        else:
+            output = model(image, sentences, l_mask=attentions)
 
         loss = criterion(output, target)
         optimizer.zero_grad()  # set_to_none=True is only available in pytorch 1.6+
@@ -154,7 +161,10 @@ def train_one_epoch(model, criterion, optimizer, data_loader, lr_scheduler, epoc
         iterations += 1
         metric_logger.update(loss=loss.item(), lr=optimizer.param_groups[0]["lr"])
 
-        del image, target, sentences, attentions, loss, output, data, last_hidden_states, embedding
+        del image, target, sentences, attentions, loss, output, data
+        if bert_model is not None:
+            del last_hidden_states, embedding
+
         gc.collect()
         torch.cuda.empty_cache()
 
@@ -167,6 +177,7 @@ def main(args):
                                   get_transform(args=args),
                                   args=args)
 
+    # batch sampler
     print(f"local rank {args.local_rank} / global rank {utils.get_rank()} successfully built train dataset.")
     num_tasks = utils.get_world_size()
     global_rank = utils.get_rank()
@@ -174,6 +185,7 @@ def main(args):
                                                                     shuffle=True)
     test_sampler = torch.utils.data.SequentialSampler(dataset_test)
 
+    # data loader
     data_loader = torch.utils.data.DataLoader(
         dataset, batch_size=args.batch_size,
         sampler=train_sampler, num_workers=args.workers, pin_memory=args.pin_mem, drop_last=True)
@@ -181,6 +193,7 @@ def main(args):
     data_loader_test = torch.utils.data.DataLoader(
         dataset_test, batch_size=1, sampler=test_sampler, num_workers=args.workers)
 
+    # model initialization
     print(args.model)
     model = segmentation.__dict__[args.model](pretrained=args.pretrained_swin_weights,
                                               args=args)
@@ -189,18 +202,26 @@ def main(args):
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank], find_unused_parameters=True)
     single_model = model.module
 
-    model_class = BertModel
-    bert_model = model_class.from_pretrained(args.ck_bert)
-    bert_model.pooler = None  # a work-around for a bug in Transformers = 3.0.2 that appears for DistributedDataParallel
-    bert_model.cuda()
-    bert_model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(bert_model)
-    bert_model = torch.nn.parallel.DistributedDataParallel(bert_model, device_ids=[args.local_rank])
-    single_bert_model = bert_model.module
+    if args.model != 'lavt_one':
+        model_class = BertModel
+        bert_model = model_class.from_pretrained(args.ck_bert)
+        bert_model.pooler = None  # a work-around for a bug in Transformers = 3.0.2 that appears for DistributedDataParallel
+        bert_model.cuda()
+        bert_model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(bert_model)
+        bert_model = torch.nn.parallel.DistributedDataParallel(bert_model, device_ids=[args.local_rank])
+        single_bert_model = bert_model.module
+    else:
+        bert_model = None
+        single_bert_model = None
 
+    # resume training
     if args.resume:
         checkpoint = torch.load(args.resume, map_location='cpu')
         single_model.load_state_dict(checkpoint['model'])
-        single_bert_model.load_state_dict(checkpoint['bert_model'])
+        if args.model != 'lavt_one':
+            single_bert_model.load_state_dict(checkpoint['bert_model'])
+
+    # parameters to optimize
     backbone_no_decay = list()
     backbone_decay = list()
     for name, m in single_model.backbone.named_parameters():
@@ -209,29 +230,44 @@ def main(args):
         else:
             backbone_decay.append(m)
 
-    params_to_optimize = [
-        {'params': backbone_no_decay, 'weight_decay': 0.0},
-        {'params': backbone_decay},
-        {"params": [p for p in single_model.classifier.parameters() if p.requires_grad]},
-        # the following are the parameters of bert
-        {"params": reduce(operator.concat,
-                          [[p for p in single_bert_model.encoder.layer[i].parameters()
-                            if p.requires_grad] for i in range(10)])},
-    ]
+    if args.model != 'lavt_one':
+        params_to_optimize = [
+            {'params': backbone_no_decay, 'weight_decay': 0.0},
+            {'params': backbone_decay},
+            {"params": [p for p in single_model.classifier.parameters() if p.requires_grad]},
+            # the following are the parameters of bert
+            {"params": reduce(operator.concat,
+                              [[p for p in single_bert_model.encoder.layer[i].parameters()
+                                if p.requires_grad] for i in range(10)])},
+        ]
+    else:
+        params_to_optimize = [
+            {'params': backbone_no_decay, 'weight_decay': 0.0},
+            {'params': backbone_decay},
+            {"params": [p for p in single_model.classifier.parameters() if p.requires_grad]},
+            # the following are the parameters of bert
+            {"params": reduce(operator.concat,
+                              [[p for p in single_model.text_encoder.encoder.layer[i].parameters()
+                                if p.requires_grad] for i in range(10)])},
+        ]
 
+    # optimizer
     optimizer = torch.optim.AdamW(params_to_optimize,
                                   lr=args.lr,
                                   weight_decay=args.weight_decay,
                                   amsgrad=args.amsgrad
                                   )
 
+    # learning rate scheduler
     lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer,
                                                      lambda x: (1 - x / (len(data_loader) * args.epochs)) ** 0.9)
 
+    # housekeeping
     start_time = time.time()
     iterations = 0
     best_oIoU = -0.1
 
+    # resume training (optimizer, lr scheduler, and the epoch)
     if args.resume:
         optimizer.load_state_dict(checkpoint['optimizer'])
         lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
@@ -239,11 +275,11 @@ def main(args):
     else:
         resume_epoch = -999
 
+    # training loops
     for epoch in range(max(0, resume_epoch+1), args.epochs):
         data_loader.sampler.set_epoch(epoch)
         train_one_epoch(model, criterion, optimizer, data_loader, lr_scheduler, epoch, args.print_freq,
                         iterations, bert_model)
-
         iou, overallIoU = evaluate(model, data_loader_test, bert_model)
 
         print('Average object IoU {}'.format(iou))
@@ -251,13 +287,20 @@ def main(args):
         save_checkpoint = (best_oIoU < overallIoU)
         if save_checkpoint:
             print('Better epoch: {}\n'.format(epoch))
-            dict_to_save = {'model': single_model.state_dict(), 'bert_model': single_bert_model.state_dict(),
-                            'optimizer': optimizer.state_dict(), 'epoch': epoch, 'args': args,
-                            'lr_scheduler': lr_scheduler.state_dict()}
+            if single_bert_model is not None:
+                dict_to_save = {'model': single_model.state_dict(), 'bert_model': single_bert_model.state_dict(),
+                                'optimizer': optimizer.state_dict(), 'epoch': epoch, 'args': args,
+                                'lr_scheduler': lr_scheduler.state_dict()}
+            else:
+                dict_to_save = {'model': single_model.state_dict(),
+                                'optimizer': optimizer.state_dict(), 'epoch': epoch, 'args': args,
+                                'lr_scheduler': lr_scheduler.state_dict()}
+
             utils.save_on_master(dict_to_save, os.path.join(args.output_dir,
                                                             'model_best_{}.pth'.format(args.model_id)))
             best_oIoU = overallIoU
 
+    # summarize
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))

@@ -51,9 +51,13 @@ def evaluate(model, data_loader, bert_model, device):
             attentions = attentions.squeeze(1)
             target = target.cpu().data.numpy()
             for j in range(sentences.size(-1)):
-                last_hidden_states = bert_model(sentences[:, :, j], attention_mask=attentions[:, :, j])[0]
-                embedding = last_hidden_states.permute(0, 2, 1)
-                output = model(image, embedding, l_mask=attentions[:, :, j].unsqueeze(-1))
+                if bert_model is not None:
+                    last_hidden_states = bert_model(sentences[:, :, j], attention_mask=attentions[:, :, j])[0]
+                    embedding = last_hidden_states.permute(0, 2, 1)
+                    output = model(image, embedding, l_mask=attentions[:, :, j].unsqueeze(-1))
+                else:
+                    output = model(image, sentences[:, :, j], l_mask=attentions[:, :, j])
+
                 output = output.cpu()
                 output_mask = output.argmax(1).data.numpy()
                 I, U = computeIoU(output_mask, target)
@@ -69,7 +73,9 @@ def evaluate(model, data_loader, bert_model, device):
                     seg_correct[n_eval_iou] += (this_iou >= eval_seg_iou)
                 seg_total += 1
 
-            del image, target, sentences, attentions, last_hidden_states, embedding, output, output_mask
+            del image, target, sentences, attentions, output, output_mask
+            if bert_model is not None:
+                del last_hidden_states, embedding
 
     mean_IoU = np.array(mean_IoU)
     mIoU = np.mean(mean_IoU)
@@ -106,19 +112,21 @@ def main(args):
     data_loader_test = torch.utils.data.DataLoader(dataset_test, batch_size=1,
                                                    sampler=test_sampler, num_workers=args.workers)
     print(args.model)
-    single_model = segmentation.__dict__[args.model](pretrained='',
-                                                     args=args)
-    single_model.to(device)
-    model_class = BertModel
-    single_bert_model = model_class.from_pretrained(args.ck_bert)
-    # work-around for a transformers bug; need to update to a newer version of transformers to remove these two lines
-    if args.ddp_trained_weights:
-        single_bert_model.pooler = None
+    single_model = segmentation.__dict__[args.model](pretrained='',args=args)
     checkpoint = torch.load(args.resume, map_location='cpu')
-    single_bert_model.load_state_dict(checkpoint['bert_model'])
     single_model.load_state_dict(checkpoint['model'])
     model = single_model.to(device)
-    bert_model = single_bert_model.to(device)
+
+    if args.model != 'lavt_one':
+        model_class = BertModel
+        single_bert_model = model_class.from_pretrained(args.ck_bert)
+        # work-around for a transformers bug; need to update to a newer version of transformers to remove these two lines
+        if args.ddp_trained_weights:
+            single_bert_model.pooler = None
+        single_bert_model.load_state_dict(checkpoint['bert_model'])
+        bert_model = single_bert_model.to(device)
+    else:
+        bert_model = None
 
     evaluate(model, data_loader_test, bert_model, device=device)
 
