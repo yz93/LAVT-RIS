@@ -7,6 +7,16 @@ from torchvision import transforms as T
 from torchvision.transforms import functional as F
 
 
+def pad_if_smaller(img, size, fill=0):
+    min_size = min(img.size)
+    if min_size < size:
+        ow, oh = img.size
+        padh = size - oh if oh < size else 0
+        padw = size - ow if ow < size else 0
+        img = F.pad(img, (0, 0, padw, padh), fill=fill)
+    return img
+
+
 class Compose(object):
     def __init__(self, transforms):
         self.transforms = transforms
