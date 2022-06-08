@@ -114,7 +114,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.launch --nproc_per_node
 mkdir ./models/gref_google
 CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.launch --nproc_per_node 4 --master_port 12345 train.py --model lavt --dataset refcocog --splitBy google --model_id gref_google --batch-size 8 --lr 0.00005 --wd 1e-2 --swin_type base --pretrained_swin_weights ./pretrained_weights/swin_base_patch4_window12_384_22k.pth --epochs 40 --img_size 480 2>&1 | tee ./models/gref_google/output
 ```
-* *--model* is a pre-defined model name. Options include `lavt` and `lavt_one`. See [Updates](#-updates).
+* *--model* is a pre-defined model name. Options include `lavt` and `lavt_one`. See [Updates](#updates).
 * *--dataset* is the dataset name. One can choose from `refcoco`, `refcoco+`, and `refcocog`.
 * *--splitBy* needs to be specified if and only if the dataset is G-Ref (which is also called RefCOCOg).
 `umd` identifies the UMD partition and `google` identifies the Google partition.
