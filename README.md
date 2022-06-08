@@ -2,25 +2,44 @@
 Welcome to the official repository for the method presented in
 "LAVT: Language-Aware Vision Transformer for Referring Image Segmentation."
 
+
 ![Pipeline Image](pipeline.jpg)
 
 Code in this repository is written using [PyTorch](https://pytorch.org/) and is organized in the following way (assuming the working directory is the root directory of this repository):
 * `./lib` contains files implementing the main network.
+* Inside `./lib`, `_utils.py` defines the highest-level model, which incorporates the backbone network
+defined in `backbone.py` and the simple mask decoder defined in `mask_predictor.py`.
+`segmentation.py` provides the model interface and initialization functions.
 * `./bert` contains files migrated from [Hugging Face Transformers v3.0.2](https://huggingface.co/transformers/v3.0.2/quicktour.html),
 which implement the BERT language model.
-We have used Transformers v3.0.2 during development but it has a bug that would appear when using `DistributedDataParallel`.
-Therefore we decided to maintain a copy of the relevant source files in this repository.
+We used Transformers v3.0.2 during development but it had a bug that would appear when using `DistributedDataParallel`.
+Therefore we maintain a copy of the relevant source files in this repository.
 This way, the bug is fixed and code in this repository is self-contained.
 * `./train.py` is invoked to train the model.
 * `./test.py` is invoked to run inference on the evaluation subsets after training.
 * `./refer` contains data pre-processing code and is also where data should be placed, including the images and all annotations.
 It is cloned from [refer](https://github.com/lichengunc/refer). 
 * `./data/dataset_refer_bert.py` is where the dataset class is defined.
-* `./utils.py` defines functions that track statistics during training and also setup
-functions for using `DistributedDataParallel`.
-* Inside `./lib`, `_utils.py` defines the highest-level model, which incorporates the backbone network
-defined in `backbone.py` and the simple mask decoder defined in `mask_predictor.py`,
-and `segmentation.py` provides a model interface and functions used to initialize the model.
+* `./utils.py` defines functions that track training statistics and setup
+functions for `DistributedDataParallel`.
+
+
+## Updates
+**June 9<sup>th</sup>, 2022**.
+Added a more efficient implementation of LAVT.
+* To train this new model, specify `--model` as `lavt_one`
+(and `lavt` is still valid for specifying the old model).
+The rest of the configuration stays unchanged.
+* The difference between this version and the previous one
+is that the language model has been moved inside the overall model,
+so that `DistributedDataParallel` needs to be applied only once.
+Applying it twice (on the standalone language model and the main branch)
+as done in the old implementation led to low GPU utility,
+which prevented scaling up training speed with more GPUs.
+We recommend training this model on 8 GPUs
+(and same as before with batch size 32).
+* We plan to verify this new implementation with multiple runs
+and report the results.
 
 ## Setting Up
 ### Preliminaries
@@ -95,7 +114,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.launch --nproc_per_node
 mkdir ./models/gref_google
 CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.launch --nproc_per_node 4 --master_port 12345 train.py --model lavt --dataset refcocog --splitBy google --model_id gref_google --batch-size 8 --lr 0.00005 --wd 1e-2 --swin_type base --pretrained_swin_weights ./pretrained_weights/swin_base_patch4_window12_384_22k.pth --epochs 40 --img_size 480 2>&1 | tee ./models/gref_google/output
 ```
-* *--model* is a pre-defined model name. Currently there is only the `lavt` option.
+* *--model* is a pre-defined model name. Options include `lavt` and `lavt_one`. See [Updates](#-updates).
 * *--dataset* is the dataset name. One can choose from `refcoco`, `refcoco+`, and `refcocog`.
 * *--splitBy* needs to be specified if and only if the dataset is G-Ref (which is also called RefCOCOg).
 `umd` identifies the UMD partition and `google` identifies the Google partition.
@@ -147,11 +166,9 @@ The overall IoU on the val set generally lies in the range of 72.73±0.5%.
 
 
 ## Demo: Try LAVT on Your Own Image-text Pairs!
-One can run inference on any pair of image and text input
-and see the result.
-We include a script, `./demo_inference.py`, for this purpose.
-Choose a photo of your liking and come up with some
-creative expressions to have fun.
+One can run inference on a custom image-text pair
+and visualize the result by running the script `./demo_inference.py`.
+Choose your own photos and expessions and have fun.
 
 
 ## Citing LAVT
@@ -164,12 +181,6 @@ creative expressions to have fun.
 }
 ```
 
-## Issues
-With this version of the code, we observe a low GPU utility during training, and may fix this in the near future.
-If one wants to try fixing this problem immediately, a thing to try is moving BERT into the overall model
-(*i.e.*, declaring and using BERT as a text encoder variable in `class _LAVTSimpleDecode` in `./lib/_utils.py`).
-We have not fully validated this change (therefore have not implemented it in this release),
-but GPU utility and results both seem to have improved in some preliminary experiments.
 
 ## Contributing
 We appreciate all contributions.
