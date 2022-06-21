@@ -25,6 +25,9 @@ functions for `DistributedDataParallel`.
 
 
 ## Updates
+**June 21<sup>st</sup>, 2022**. Uploaded the training logs and trained
+model weights of lavt_one.
+
 **June 9<sup>th</sup>, 2022**.
 Added a more efficient implementation of LAVT.
 * To train this new model, specify `--model` as `lavt_one`
@@ -38,8 +41,6 @@ as done in the old implementation led to low GPU utility,
 which prevented scaling up training speed with more GPUs.
 We recommend training this model on 8 GPUs
 (and same as before with batch size 32).
-* We plan to verify this new implementation with multiple runs
-and report the results.
 
 ## Setting Up
 ### Preliminaries
@@ -88,16 +89,30 @@ These weights are needed for training to initialize the model.
 ```shell
 mkdir ./checkpoints
 ```
-2. Download model weights (which are stored on Google Drive) using links below and put them in `./checkpoints`.
+2. Download LAVT model weights (which are stored on Google Drive) using links below and put them in `./checkpoints`.
 
 | [RefCOCO](https://drive.google.com/file/d/13D-OeEOijV8KTC3BkFP-gOJymc6DLwVT/view?usp=sharing) | [RefCOCO+](https://drive.google.com/file/d/1B8Q44ZWsc8Pva2xD_M-KFh7-LgzeH2-2/view?usp=sharing) | [G-Ref (UMD)](https://drive.google.com/file/d/1BjUnPVpALurkGl7RXXvQiAHhA-gQYKvK/view?usp=sharing) | [G-Ref (Google)](https://drive.google.com/file/d/1weiw5UjbPfo3tCBPfB8tu6xFXCUG16yS/view?usp=sharing) |
 |---|---|---|---|
 
+3. Model weights and training logs of the new lavt_one implementation are below.
 
+| RefCOCO | RefCOCO+ | G-Ref (UMD) | G-Ref (Google) |
+|:-----:|:-----:|:-----:|:-----:|
+|[log](https://drive.google.com/file/d/1YIojIHqe3bxxsWOltifa2U9jH67hPHLM/view?usp=sharing) &#124; [weights](https://drive.google.com/file/d/1xFMEXr6AGU97Ypj1yr8oo00uObbeIQvJ/view?usp=sharing)|[log](https://drive.google.com/file/d/1Z34T4gEnWlvcSUQya7txOuM0zdLK7MRT/view?usp=sharing) &#124; [weights](https://drive.google.com/file/d/1HS8ZnGaiPJr-OmoUn4-4LVnVtD_zHY6w/view?usp=sharing)|[log](https://drive.google.com/file/d/14VAgahngOV8NA6noLZCqDoqaUrlW14v8/view?usp=sharing) &#124; [weights](https://drive.google.com/file/d/14g8NzgZn6HzC6tP_bsQuWmh5LnOcovsE/view?usp=sharing)|[log](https://drive.google.com/file/d/1JBXfmlwemWSvs92Rky0TlHcVuuLpt4Da/view?usp=sharing) &#124; [weights](https://drive.google.com/file/d/1IJeahFVLgKxu_BVmWacZs3oUzgTCeWcz/view?usp=sharing)|
+
+* The Prec@K, overall IoU and mean IoU numbers in the training logs will differ
+from the final results obtained by running `test.py`,
+because only one out of multiple annotated expressions is
+randomly selected and evaluated for each object during training.
+But these numbers give a good idea about the test performance.
+The two should be fairly close.
 
 
 ## Training
 We use `DistributedDataParallel` from PyTorch.
+The released `lavt` weights were trained using 4 x 32G V100 cards (max mem on each card was about 26G).
+The released `lavt_one` weights were trained using 8 x 32G V100 cards (max mem on each card was about 13G).
+Using more cards was to accelerate training.
 To run on 4 GPUs (with IDs 0, 1, 2, and 3) on a single node:
 ```shell
 mkdir ./models
@@ -147,7 +162,7 @@ One can choose from `umd` or `google`.
 * *--resume* is the path to the weights of a trained model.
 
 ## Results
-The complete test results of the released models are summarized as follows:
+The complete test results of the released LAVT models are summarized as follows:
 
 |     Dataset     | P@0.5 | P@0.6 | P@0.7 | P@0.8 | P@0.9 | Overall IoU | Mean IoU |
 |:---------------:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----------:|:--------:|
@@ -168,7 +183,7 @@ The overall IoU on the val set generally lies in the range of 72.73±0.5%.
 ## Demo: Try LAVT on Your Own Image-text Pairs!
 One can run inference on a custom image-text pair
 and visualize the result by running the script `./demo_inference.py`.
-Choose your own photos and expessions and have fun.
+Choose your photos and expessions and have fun.
 
 
 ## Citing LAVT

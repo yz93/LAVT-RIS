@@ -157,6 +157,7 @@ def train_one_epoch(model, criterion, optimizer, data_loader, lr_scheduler, epoc
         optimizer.step()
         lr_scheduler.step()
 
+        torch.cuda.synchronize()
         train_loss += loss.item()
         iterations += 1
         metric_logger.update(loss=loss.item(), lr=optimizer.param_groups[0]["lr"])
@@ -167,6 +168,7 @@ def train_one_epoch(model, criterion, optimizer, data_loader, lr_scheduler, epoc
 
         gc.collect()
         torch.cuda.empty_cache()
+        torch.cuda.synchronize()
 
 
 def main(args):
