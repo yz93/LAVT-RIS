@@ -162,7 +162,7 @@ One can choose from `umd` or `google`.
 * *--resume* is the path to the weights of a trained model.
 
 ## Results
-The complete test results of the released LAVT models are summarized as follows:
+1. The evaluation results (those reported in the paper) of LAVT trained with a cross-entropy loss and based on our original implementation are summarized as follows:
 
 |     Dataset     | P@0.5 | P@0.6 | P@0.7 | P@0.8 | P@0.9 | Overall IoU | Mean IoU |
 |:---------------:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----------:|:--------:|
@@ -176,14 +176,27 @@ The complete test results of the released LAVT models are summarized as follows:
 | G-Ref test (UMD)| 71.54 | 66.38 | 59.00 | 48.21 | 23.10 |    62.09    |   63.62  |
 |G-Ref val (Goog.)| 71.16 | 67.21 | 61.76 | 51.98 | 27.30 |    60.50    |   63.66  |
 
-We have validated LAVT on RefCOCO with multiple runs.
-The overall IoU on the val set generally lies in the range of 72.73±0.5%.
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- We have validated LAVT on RefCOCO with multiple runs. The overall IoU on the val set generally lies in the range of 72.73±0.5%.
+
+2. In the following, we report the results of LAVT trained with a multi-class Dice loss and based on the new implementation (`lavt_one`).
+
+|     Dataset     | P@0.5 | P@0.6 | P@0.7 | P@0.8 | P@0.9 | Overall IoU | Mean IoU |
+|:---------------:|:-----:|:-----:|:-----:|:-----:|:-----:|:-----------:|:--------:|
+| RefCOCO val     | 85.87 | 82.13 | 76.64 | 65.45 | 35.30 |    73.50    |   75.41  |
+| RefCOCO test A  | 88.47 | 85.63 | 80.57 | 68.84 | 35.71 |    75.97    |   77.31  |
+| RefCOCO test B  | 80.20 | 76.49 | 70.34 | 60.12 | 34.94 |    69.33    |   71.86  |
+| RefCOCO+ val    | 76.19 | 72.27 | 66.82 | 56.87 | 30.15 |    63.79    |   67.65  |
+| RefCOCO+ test A | 82.50 | 79.44 | 74.00 | 63.27 | 31.99 |    69.79    |   72.53  |
+| RefCOCO+ test B | 68.03 | 63.35 | 57.29 | 47.92 | 26.98 |    56.49    |   61.22  |
+| G-Ref val (UMD) | 75.82 | 71.06 | 63.99 | 52.98 | 27.31 |    64.02    |   67.41  |
+| G-Ref test (UMD)| 76.12 | 71.13 | 64.58 | 53.62 | 28.03 |    64.49    |   67.45  |
+|G-Ref val (Goog.)| 72.57 | 68.65 | 63.09 | 53.33 | 28.14 |    61.31    |   64.84  |
 
 
-## Demo: Try LAVT on Your Own Image-text Pairs!
-One can run inference on a custom image-text pair
+## Demo: Try LAVT on Your Own Image-Text Pairs
+You can run inference on any image-text pair
 and visualize the result by running the script `./demo_inference.py`.
-Choose your photos and expessions and have fun.
+Have fun!
 
 
 ## Citing LAVT
