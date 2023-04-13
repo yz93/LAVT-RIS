@@ -553,9 +553,6 @@ class MMBasicLayer(nn.Module):
             self.downsample = downsample(dim=dim, norm_layer=norm_layer)
         else:
             self.downsample = None
-        # initialize the gate to 0
-        nn.init.zeros_(self.res_gate[0].weight)
-        nn.init.zeros_(self.res_gate[2].weight)
 
     def forward(self, x, H, W, l, l_mask):
         """ Forward function.
