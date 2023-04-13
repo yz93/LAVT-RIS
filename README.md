@@ -25,6 +25,8 @@ functions for `DistributedDataParallel`.
 
 
 ## Updates
+**April 13<sup>th</sup>, 2023**. Using the Dice loss instead of the cross-entropy loss can improve results. Will add code and release weights later when get a chance.
+
 **June 21<sup>st</sup>, 2022**. Uploaded the training logs and trained
 model weights of lavt_one.
 
@@ -38,7 +40,7 @@ is that the language model has been moved inside the overall model,
 so that `DistributedDataParallel` needs to be applied only once.
 Applying it twice (on the standalone language model and the main branch)
 as done in the old implementation led to low GPU utility,
-which prevented scaling up training speed with more GPUs.
+which slowed down training.
 We recommend training this model on 8 GPUs
 (and same as before with batch size 32).
 
